@@ -20,6 +20,8 @@ RUN npm run build
 
 FROM base AS web
 ENV NODE_ENV=production PORT=3000 HOSTNAME=0.0.0.0
+# Audio folder (a volume in docker-compose.prod.yml; STORAGE_DRIVER=local on the Azure VM)
+RUN mkdir -p /data/storage && chown node:node /data/storage
 COPY --from=build --chown=node:node /app/.next/standalone ./
 COPY --from=build --chown=node:node /app/.next/static ./.next/static
 COPY --from=build --chown=node:node /app/public ./public
@@ -31,6 +33,7 @@ CMD ["node", "server.js"]
 
 FROM base AS jobs
 ENV NODE_ENV=production
+RUN mkdir -p /data/storage && chown node:node /data/storage
 COPY --from=deps --chown=node:node /app/node_modules ./node_modules
 COPY --chown=node:node package.json tsconfig.json ./
 COPY --chown=node:node src ./src

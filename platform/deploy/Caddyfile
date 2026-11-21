@@ -1,0 +1,8 @@
+{$DOMAIN} {
+	encode gzip
+	# Question audio / Excel uploads are up to 12 MB (next.config.ts)
+	request_body {
+		max_size 15MB
+	}
+	reverse_proxy web:3000
+}

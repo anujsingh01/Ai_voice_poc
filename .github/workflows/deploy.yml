@@ -1,0 +1,88 @@
+name: Deploy
+
+# Builds both images, pushes them to GHCR, then updates the Azure VM over SSH.
+# Runs on every push to main (after you've seen CI green) or manually.
+on:
+  push:
+    branches: [main]
+    paths: ["platform/**", ".github/workflows/deploy.yml"]
+  workflow_dispatch:
+
+concurrency: deploy-azure
+
+env:
+  OWNER: ${{ github.repository_owner }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions: { contents: read, packages: write }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push web
+        uses: docker/build-push-action@v6
+        with:
+          context: platform
+          target: web
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/ai-voice-web:${{ github.sha }}
+            ghcr.io/${{ github.repository_owner }}/ai-voice-web:latest
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,mode=max,scope=web
+      - name: Build and push jobs
+        uses: docker/build-push-action@v6
+        with:
+          context: platform
+          target: jobs
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/ai-voice-jobs:${{ github.sha }}
+            ghcr.io/${{ github.repository_owner }}/ai-voice-jobs:latest
+          cache-from: type=gha,scope=jobs
+          cache-to: type=gha,mode=max,scope=jobs
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: azure-vm
+    steps:
+      - uses: actions/checkout@v4
+      - name: Copy compose files to the VM
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VM_HOST }}
+          username: ${{ secrets.VM_USER }}
+          key: ${{ secrets.VM_SSH_KEY }}
+          source: platform/docker-compose.prod.yml,platform/deploy/Caddyfile
+          target: /opt/ai-voice
+          strip_components: 1
+      - name: Pull images and restart
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VM_HOST }}
+          username: ${{ secrets.VM_USER }}
+          key: ${{ secrets.VM_SSH_KEY }}
+          script_stop: true
+          script: |
+            cd /opt/ai-voice
+            mv -f deploy/Caddyfile Caddyfile; rmdir deploy 2>/dev/null || true
+            echo "${{ secrets.GHCR_PULL_TOKEN }}" | docker login ghcr.io -u "${{ github.repository_owner }}" --password-stdin
+            export IMAGE_TAG=${{ github.sha }}
+            sed -i '/^IMAGE_TAG=/d' .env && echo "IMAGE_TAG=$IMAGE_TAG" >> .env
+            docker compose -f docker-compose.prod.yml pull
+            docker compose -f docker-compose.prod.yml up -d --remove-orphans
+            docker image prune -f
+      - name: Smoke test
+        run: |
+          for i in $(seq 1 20); do
+            curl -fsS "https://${{ secrets.APP_DOMAIN }}/api/health" && exit 0
+            sleep 6
+          done
+          echo "Health check failed"; exit 1
