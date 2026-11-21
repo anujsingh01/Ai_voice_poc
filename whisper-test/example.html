@@ -1,0 +1,25 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Upload Example</title>
+<!-- The minimal integration from section 4 of index.html, as a working page. -->
+<input type="file" id="voiceFile" accept="audio/*,video/*">
+<p id="transcript"></p>
+
+<script type="module">
+  import { WhisperSTT } from './whisper-stt.js';
+
+  const stt = new WhisperSTT();
+  stt.load();   // starts loading the model as soon as the page opens
+
+  document.getElementById('voiceFile').onchange = async (event) => {
+    const file = event.target.files[0];
+    document.getElementById('transcript').textContent = 'Converting…';
+
+    try {
+      const result = await stt.transcribe(file);   // language is auto-detected
+      document.getElementById('transcript').textContent = result.text;
+    } catch (error) {
+      document.getElementById('transcript').textContent = 'Could not convert: ' + error.message;
+    }
+  };
+</script>

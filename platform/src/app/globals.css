@@ -1,0 +1,58 @@
+@import "tailwindcss";
+
+/* Design tokens. Brand: deep indigo-violet; neutrals: cool slate. */
+@theme inline {
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+  --color-brand-50: #f1f1fe;
+  --color-brand-100: #e4e4fd;
+  --color-brand-200: #cdccfb;
+  --color-brand-300: #aaa8f7;
+  --color-brand-400: #8580f1;
+  --color-brand-500: #6c63ea;
+  --color-brand-600: #5a48dd;
+  --color-brand-700: #4c3ac3;
+  --color-brand-800: #3f339e;
+  --color-brand-900: #36307d;
+  --color-brand-950: #211c49;
+}
+
+:root {
+  --background: #f7f8fa;
+  --foreground: #0f172a;
+}
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+::selection { background: var(--color-brand-200); color: var(--color-brand-950); }
+
+/* Visible, consistent keyboard focus everywhere. */
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--color-brand-500);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* Tables inside cards: quiet header, roomy rows, hover. */
+.data-table { width: 100%; font-size: 0.875rem; border-collapse: separate; border-spacing: 0; }
+.data-table thead th {
+  text-align: left; font-weight: 500; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em;
+  color: #64748b; background: #f8fafc; padding: 0.7rem 1rem; border-bottom: 1px solid #e2e8f0;
+}
+.data-table tbody td { padding: 0.85rem 1rem; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+.data-table tbody tr:last-child td { border-bottom: 0; }
+.data-table tbody tr { transition: background-color 120ms; }
+.data-table tbody tr:hover { background: #fafbff; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}

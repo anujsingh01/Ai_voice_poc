@@ -1,0 +1,8 @@
+.DS_Store
+.claude/scheduled_tasks.lock
+whisper-test/models/
+whisper-test/test-audio/
+
+.claude/
+platform/infra/terraform/environments/*.tfvars
+platform/infra/terraform/environments/*.backend.hcl

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- macOS (launchd). Edit the two paths, then:
+       cp service/com.interview.transcribe-worker.plist ~/Library/LaunchAgents/
+       launchctl load -w ~/Library/LaunchAgents/com.interview.transcribe-worker.plist
+     Logs: /tmp/transcribe-worker.log -->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.interview.transcribe-worker</string>
+  <key>WorkingDirectory</key><string>/opt/worker</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/opt/worker/.venv/bin/python</string>
+    <string>-u</string>
+    <string>transcribe_worker.py</string>
+  </array>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>ThrottleInterval</key><integer>10</integer>
+  <key>StandardOutPath</key><string>/tmp/transcribe-worker.log</string>
+  <key>StandardErrorPath</key><string>/tmp/transcribe-worker.log</string>
+</dict>
+</plist>

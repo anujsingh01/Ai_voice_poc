@@ -1,0 +1,394 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Whisper Test Station</title>
+<style>
+  :root { --bg:#f6f7f9; --card:#fff; --ink:#1d2330; --muted:#667085; --line:#e3e6ea; --accent:#2563eb; --ok:#15803d; --err:#b91c1c; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 860px; margin: 0 auto; padding: 24px 16px 64px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .sub { color: var(--muted); margin: 0 0 20px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:16px; margin-bottom:16px; }
+  .card h2 { font-size:15px; margin:0 0 12px; }
+  .row { display:flex; flex-wrap:wrap; gap:12px; align-items:end; }
+  label { display:flex; flex-direction:column; gap:4px; font-size:13px; color:var(--muted); }
+  select, button { font:inherit; padding:8px 12px; border-radius:8px; border:1px solid var(--line); background:#fff; color:var(--ink); }
+  button { cursor:pointer; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
+  button.rec { background:var(--err); border-color:var(--err); color:#fff; }
+  button:disabled { opacity:.5; cursor:not-allowed; }
+  .status { font-size:13px; color:var(--muted); margin-top:10px; white-space:pre-wrap; }
+  .bar { height:6px; background:var(--line); border-radius:3px; overflow:hidden; margin-top:8px; display:none; }
+  .bar > div { height:100%; width:0; background:var(--accent); transition:width .2s; }
+  .pill { display:inline-block; font-size:12px; padding:2px 8px; border-radius:999px; background:var(--line); }
+  .pill.ok { background:#dcfce7; color:var(--ok); }
+  .pill.err { background:#fee2e2; color:var(--err); }
+  .result { border-top:1px solid var(--line); padding:12px 0; }
+  .result:first-child { border-top:0; padding-top:0; }
+  .result .meta { font-size:12px; color:var(--muted); margin-bottom:4px; }
+  .result .text { font-size:17px; white-space:pre-wrap; }
+  .result .translation { margin-top:8px; padding-left:10px; border-left:3px solid var(--accent); }
+  .empty { color:var(--muted); font-size:14px; }
+  audio { width:100%; margin-top:6px; }
+  .guide h3 { font-size:14px; margin:18px 0 6px; }
+  .guide p, .guide li { font-size:14px; }
+  .guide code { font:13px ui-monospace, Menlo, monospace; background:#f1f3f5; padding:1px 4px; border-radius:4px; }
+  .guide pre { position:relative; background:#0f172a; color:#e2e8f0; padding:14px; border-radius:8px; overflow-x:auto; }
+  .guide pre code { background:none; padding:0; color:inherit; }
+  .guide pre .copy { position:absolute; top:8px; right:8px; font-size:12px; padding:3px 8px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Whisper Test Station</h1>
+  <p class="sub">Speech-to-text that runs entirely in this Chrome tab (Transformers.js). Audio never leaves this PC.</p>
+
+  <section class="card">
+    <h2>1. Speech model</h2>
+    <div class="row">
+      <span id="modelState" class="pill">starting…</span>
+    </div>
+    <div class="bar" id="bar"><div></div></div>
+    <div class="status" id="loadStatus"></div>
+    <div class="status" id="extraStatus"></div>
+  </section>
+
+  <section class="card">
+    <h2>2. Give it audio</h2>
+    <div class="row">
+      <label>Language
+        <select id="lang">
+          <option value="" selected>Auto-detect</option>
+        </select>
+      </label>
+      <label>Task
+        <select id="task">
+          <option value="transcribe">Transcribe (same language)</option>
+          <option value="translate">Translate to English</option>
+        </select>
+      </label>
+      <label>Then translate the text to
+        <select id="translateTo">
+          <option value="" selected>Don't translate</option>
+        </select>
+      </label>
+      <button id="recBtn" disabled>● Record</button>
+      <label style="flex-direction:row;align-items:center">
+        <input type="file" id="fileIn" accept="audio/*,video/*" multiple disabled>
+      </label>
+    </div>
+    <div class="status" id="audioStatus">Waiting for the model to finish loading. Then you can record from the mic or pick one or more audio files (queued one after another, like the station would).</div>
+  </section>
+
+  <section class="card">
+    <h2>3. Results</h2>
+    <div id="results"><p class="empty">No transcriptions yet.</p></div>
+  </section>
+
+  <section class="card guide">
+    <h2>4. Use this in your own program</h2>
+    <p>All the speech-to-text work is in one file, <code>whisper-stt.js</code>. This page is just one program
+      that uses it. Any other web page can use it the same way: give it an audio file and get text back.</p>
+
+    <h3>Step 1: Copy these into your program's web folder</h3>
+    <ul>
+      <li><code>whisper-stt.js</code>: the speech-to-text engine.</li>
+      <li>The <code>models/</code> folder: the Tamil and Malayalam fine-tuned models. Keep it next to
+        <code>whisper-stt.js</code>. Without it, everything still works, but Tamil and Malayalam use standard Whisper.</li>
+    </ul>
+
+    <h3>Step 2: Add this to the page where users upload a voice file</h3>
+<pre><code>&lt;input type="file" id="voiceFile" accept="audio/*,video/*"&gt;
+&lt;p id="transcript"&gt;&lt;/p&gt;
+
+&lt;script type="module"&gt;
+  import { WhisperSTT } from './whisper-stt.js';
+
+  const stt = new WhisperSTT();
+  stt.load();   // starts loading the model as soon as the page opens
+
+  document.getElementById('voiceFile').onchange = async (event) =&gt; {
+    const file = event.target.files[0];
+    document.getElementById('transcript').textContent = 'Converting…';
+
+    try {
+      const result = await stt.transcribe(file);   // language is auto-detected
+      document.getElementById('transcript').textContent = result.text;
+    } catch (error) {
+      document.getElementById('transcript').textContent = 'Could not convert: ' + error.message;
+    }
+  };
+&lt;/script&gt;</code></pre>
+    <p>That's all that's required. <code>transcribe()</code> accepts any audio Chrome can play (mp3, wav, m4a, webm, ogg,
+      and the sound track of mp4 videos).</p>
+
+    <h3>Step 3 (optional): Choose the language or translate</h3>
+<pre><code>await stt.transcribe(file, { language: 'ta' });         // force Tamil (skips auto-detect)
+await stt.transcribe(file, { language: 'hi' });         // force Hindi
+await stt.transcribe(file, { task: 'translate' });      // English translation of any language</code></pre>
+    <p>Language codes: <code>hi</code> Hindi, <code>ta</code> Tamil, <code>te</code> Telugu, <code>kn</code> Kannada,
+      <code>ml</code> Malayalam, <code>mr</code> Marathi, <code>bn</code> Bengali, <code>gu</code> Gujarati,
+      <code>pa</code> Punjabi, <code>ur</code> Urdu, <code>en</code> English. The full list of 99 is
+      <code>LANGUAGE_NAMES</code> in <code>whisper-stt.js</code>.</p>
+
+    <h3>What you get back</h3>
+<pre><code>{
+  text: "வணக்கம் எனக்கு ...",           // the transcript
+  language: "ta",                       // language used
+  detected: true,                       // true if it was auto-detected
+  model: "vasista22/whisper-tamil-small", // fine-tuned model used, or null for standard Whisper
+  seconds: 4.8,                         // length of the audio
+  ms: 3200                              // time taken to transcribe
+}</code></pre>
+
+    <h3>Step 3b (optional): Translate the text into another language</h3>
+<pre><code>const result = await stt.transcribe(file);
+const hindi = await stt.translate(result.text, { from: result.language, to: 'hi' });
+console.log(hindi.text);   // the Hindi translation</code></pre>
+    <p>This works between any two languages in <code>NLLB_CODES</code> (all the Indian languages above, English and about
+      25 others), offline. If you used <code>task: 'translate'</code>, the text is already English, so pass
+      <code>from: 'en'</code>.</p>
+    <p>Where it can, it uses <b>Chrome's built-in translator</b> (about 250 MB of memory, a few milliseconds). That covers
+      Hindi, Tamil, Telugu, Kannada, Marathi, Bengali, English and most world languages. Chrome downloads each language
+      the first time, and only allows that from a click, so call this from a click handler (for example when the user
+      picks the target language):</p>
+<pre><code>button.onclick = () => stt.prepareTranslation('ta', 'hi');   // one-time download of Tamil → Hindi</code></pre>
+    <p>Other pairs (Malayalam, Gujarati, Punjabi, Urdu, Assamese, Nepali, Sindhi, Sanskrit), and pairs Chrome has not
+      downloaded yet, use Meta's NLLB-200 model instead: about 900 MB to download the first time and up to 4 GB of memory
+      while translating. <code>translate()</code> returns <code>engine</code> (<code>'chrome'</code> or <code>'nllb'</code>)
+      and <code>chromeNeedsClick: true</code> when calling <code>prepareTranslation()</code> from a click would let Chrome
+      take over that pair.</p>
+
+    <h3>Step 4 (optional): Send the text to your server</h3>
+<pre><code>const result = await stt.transcribe(file);
+await fetch('/api/answers', {             // replace with your own endpoint
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ text: result.text, language: result.language }),
+});</code></pre>
+
+    <h3>If your program is not a web page (Python, PHP, Java, Node server…)</h3>
+    <p>The model only runs inside Chrome, so your server can't call it directly. Use the "transcription station" setup:
+      keep one Chrome page open on the GPU PC that asks your server for new recordings, converts them, and sends the
+      text back. Your server needs two endpoints (the names below are examples):</p>
+<pre><code>&lt;script type="module"&gt;
+  import { WhisperSTT } from './whisper-stt.js';
+  const stt = new WhisperSTT();
+  await stt.load();
+
+  while (true) {
+    // 1. Ask your server for the next recording. Expected reply: { id, audioUrl, language } or null.
+    const job = await (await fetch('/api/next-recording')).json();
+    if (!job) { await new Promise(r =&gt; setTimeout(r, 5000)); continue; }   // nothing new: wait 5 s
+
+    // 2. Download the audio and convert it to text.
+    const audio = await (await fetch(job.audioUrl)).blob();
+    const result = await stt.transcribe(audio, { language: job.language || '' });
+
+    // 3. Send the text back.
+    await fetch('/api/transcripts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: job.id, text: result.text, language: result.language }),
+    });
+  }
+&lt;/script&gt;</code></pre>
+
+    <h3>Requirements</h3>
+    <ul>
+      <li><b>Chrome</b> (or Edge) on a PC with a graphics card. Without one it falls back to the CPU, which is slower.
+        To force the CPU (about 1 GB less memory), use <code>new WhisperSTT({ device: 'wasm' })</code>, or open this page as
+        <code>?device=cpu</code>.</li>
+      <li>The server should send the headers <code>Cross-Origin-Opener-Policy: same-origin</code> and
+        <code>Cross-Origin-Embedder-Policy: credentialless</code> (<code>server.js</code> does). Then the CPU mode uses
+        several cores, about 3× faster.</li>
+      <li>The page must be opened from <code>http://localhost</code> or an <code>https://</code> address, not by double-clicking the
+        file. On this PC, <code>start.command</code> does that.</li>
+      <li>Load <code>whisper-stt.js</code> from the same website as your page. If <code>models/</code> is on another address, pass it:
+        <code>new WhisperSTT({ modelsUrl: 'https://…/models/' })</code>.</li>
+      <li>The first load downloads about 410 MB. The Tamil and Malayalam models (about 400 MB each) load only when
+        that language comes up, only one of them is kept in memory at a time, and it is freed again after 60 seconds
+        without a clip. Translation adds about 900 MB, loaded when first used and also freed after 60 idle seconds.
+        Change the delays with <code>new WhisperSTT({ languageModelIdleSeconds: 60, translationIdleSeconds: 60 })</code>
+        (<code>Infinity</code> keeps a model loaded), or free memory at once with <code>stt.freeLanguageModel()</code> and
+        <code>stt.freeTranslation()</code>. Chrome keeps the downloads, so later loads take seconds.</li>
+      <li>Call <code>load()</code> once when the page opens, and reuse the same <code>stt</code> for every file. Files sent at the
+        same time are processed one after another.</li>
+    </ul>
+  </section>
+</main>
+
+<script type="module">
+import { WhisperSTT, LANGUAGE_MODELS, LANGUAGE_NAMES, INDIAN_LANGUAGES, OTHER_LANGUAGES, NLLB_CODES } from './whisper-stt.js';
+
+const $ = id => document.getElementById(id);
+const recBtn = $('recBtn'), fileIn = $('fileIn');
+const bar = $('bar'), barFill = bar.firstElementChild;
+
+for (const [label, langs] of [['Indian languages', INDIAN_LANGUAGES], ['All other languages', OTHER_LANGUAGES]]) {
+  const group = document.createElement('optgroup');
+  group.label = `${label} (${langs.length})`;
+  for (const [code, name] of langs) group.appendChild(new Option(name, code));
+  $('lang').appendChild(group);
+  const tgroup = document.createElement('optgroup');
+  tgroup.label = label;
+  for (const [code, name] of langs) if (NLLB_CODES[code]) tgroup.appendChild(new Option(name, code));
+  $('translateTo').appendChild(tgroup);
+}
+
+const prepareTranslation = () => $('translateTo').value && stt.prepareTranslation($('lang').value || 'en', $('translateTo').value);
+$('translateTo').addEventListener('change', prepareTranslation);
+$('lang').addEventListener('change', prepareTranslation);
+
+function setModelState(text, cls = '') { const el = $('modelState'); el.textContent = text; el.className = 'pill ' + cls; }
+const deviceName = () => stt.device === 'webgpu' ? 'graphics card'
+  : crossOriginIsolated ? `CPU (${Math.min(8, navigator.hardwareConcurrency)} cores)` : 'CPU (1 core, slow)';
+
+// Per fine-tuned model: 'loads when first needed' | 'loading' | 'ready' | 'unloaded …' | 'failed …'
+const extraState = Object.fromEntries(Object.values(LANGUAGE_MODELS).map(m => [m, 'loads when first needed']));
+function showExtraState() {
+  $('extraStatus').textContent = Object.entries(LANGUAGE_MODELS)
+    .map(([code, model]) => `${LANGUAGE_NAMES.get(code)} fine-tuned model: ${extraState[model]}`).join('\n');
+}
+
+// ?device=cpu runs on the CPU: less memory, slower.
+const stt = new WhisperSTT({
+  device: new URLSearchParams(location.search).get('device') === 'cpu' ? 'wasm' : undefined,
+  onProgress(l, t) {
+    barFill.style.width = (100 * l / t).toFixed(1) + '%';
+    $('loadStatus').textContent = l < t ? `Downloading ${(l / 1e6).toFixed(0)} / ${(t / 1e6).toFixed(0)} MB`
+                                        : 'Preparing model on ' + deviceName() + '…';
+  },
+  onExtraModel(model, state, message) {
+    extraState[model] = state === 'failed' ? 'failed (standard Whisper will be used): ' + message
+      : state === 'unloaded' ? 'unloaded to save memory (loads again when needed)' : state;
+    showExtraState();
+  },
+  onTranslateProgress(l, t) {
+    $('audioStatus').textContent = l < t
+      ? `Downloading the translation model (first time only): ${(l / 1e6).toFixed(0)} / ${(t / 1e6).toFixed(0)} MB`
+      : 'Preparing the translation model…';
+  },
+});
+
+setModelState('loading…');
+bar.style.display = 'block';
+$('loadStatus').textContent = 'Loading Whisper small (first time downloads ~410 MB; Chrome caches it afterwards)…';
+showExtraState();
+stt.load().then(() => {
+  bar.style.display = 'none';
+  setModelState('ready', 'ok');
+  $('loadStatus').textContent = `Whisper small running on ${deviceName()}${stt.fp16 ? ' (half precision)' : ''}.` +
+    (stt.device === 'wasm' && navigator.gpu && new URLSearchParams(location.search).get('device') === 'cpu'
+      ? '\nCPU chosen with ?device=cpu: less memory, slower.'
+      : stt.device === 'wasm' ? '\nNo usable graphics card found, so transcription will be several times slower.' : '');
+  recBtn.disabled = fileIn.disabled = false;
+  $('audioStatus').textContent = 'Ready. Record or choose files.';
+}, e => {
+  setModelState('failed', 'err');
+  $('loadStatus').textContent = 'Error: ' + e.message + '\nReload the page to try again.';
+});
+
+let waiting = 0;
+async function addClip(blob, name) {
+  const el = document.createElement('div');
+  el.className = 'result';
+  el.innerHTML = `<div class="meta"></div><div class="text"><span class="pill">transcribing…</span></div>`;
+  el.querySelector('.meta').textContent = name;
+  const audioEl = document.createElement('audio');
+  audioEl.controls = true; audioEl.src = URL.createObjectURL(blob);
+  el.appendChild(audioEl);
+  $('results').querySelector('.empty')?.remove();
+  $('results').prepend(el);
+  const t = el.querySelector('.text');
+  $('audioStatus').textContent = `Transcribing… (${++waiting} in progress)`;
+  const task = $('task').value, translateTo = $('translateTo').value;
+  try {
+    const r = await stt.transcribe(blob, { language: $('lang').value, task });
+    el.querySelector('.meta').textContent = `${name} · ${r.seconds.toFixed(1)}s audio · ` +
+      `${LANGUAGE_NAMES.get(r.language)}${r.detected ? ' (auto-detected)' : ''} · ` +
+      `${r.model ? 'fine-tuned ' + r.model.split('/')[1] : 'standard Whisper small'} · ` +
+      `took ${(r.ms / 1000).toFixed(1)}s (${(r.seconds / (r.ms / 1000)).toFixed(1)}× real time)`;
+    t.textContent = r.text || '(no speech detected)';
+    let last = t;   // the translation goes below the text (and the original, if shown)
+    if (r.original) {
+      const o = last = document.createElement('div');
+      o.className = 'meta';
+      o.textContent = `${LANGUAGE_NAMES.get(r.language)}: ${r.original}`;
+      t.after(o);
+    }
+
+    const from = task === 'translate' ? 'en' : r.language;
+    if (translateTo && r.text && translateTo !== from) {
+      const tr = document.createElement('div');
+      tr.className = 'translation';
+      tr.innerHTML = `<div class="meta"></div><div class="text"><span class="pill">translating…</span></div>`;
+      tr.querySelector('.meta').textContent = `${LANGUAGE_NAMES.get(translateTo)} translation`;
+      last.after(tr);
+      try {
+        const show = x => {
+          tr.querySelector('.meta').textContent = `${LANGUAGE_NAMES.get(translateTo)} translation · ` +
+            `${x.engine === 'chrome' ? "Chrome's built-in translator" : 'NLLB model'} · took ${(x.ms / 1000).toFixed(1)}s`;
+          tr.querySelector('.text').textContent = x.text;
+        };
+        const x = await stt.translate(r.text, { from, to: translateTo });
+        show(x);
+        if (x.chromeNeedsClick) {
+          // Chrome can translate this pair with far less memory, but downloading it needs a click.
+          const btn = document.createElement('button');
+          btn.style.marginTop = '6px';
+          btn.textContent = `Use Chrome's translator for ${LANGUAGE_NAMES.get(from)} → ${LANGUAGE_NAMES.get(translateTo)} (smaller, faster)`;
+          btn.onclick = async () => {
+            btn.disabled = true; btn.textContent = "Downloading Chrome's translator…";
+            if (await stt.prepareTranslation(from, translateTo)) { show(await stt.translate(r.text, { from, to: translateTo })); btn.remove(); }
+            else btn.textContent = "Chrome's translator could not be downloaded";
+          };
+          tr.appendChild(btn);
+        }
+      } catch (e) {
+        tr.querySelector('.text').innerHTML = '<span class="pill err"></span>';
+        tr.querySelector('.pill').textContent = 'translation error: ' + e.message;
+      }
+    }
+  } catch (e) {
+    t.innerHTML = '<span class="pill err"></span>';
+    t.firstChild.textContent = 'error: ' + e.message;
+  }
+  $('audioStatus').textContent = --waiting ? `Transcribing… (${waiting} in progress)` : 'Done. Record or choose more files.';
+}
+
+fileIn.onchange = () => { for (const f of fileIn.files) addClip(f, f.name); fileIn.value = ''; };
+
+let recorder = null, chunks = [];
+recBtn.onclick = async () => {
+  if (recorder?.state === 'recording') { recorder.stop(); return; }
+  let stream;
+  try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+  catch (e) { $('audioStatus').textContent = 'Microphone blocked: ' + e.message; return; }
+  chunks = [];
+  recorder = new MediaRecorder(stream);
+  recorder.ondataavailable = e => chunks.push(e.data);
+  recorder.onstop = () => {
+    stream.getTracks().forEach(t => t.stop());
+    recBtn.textContent = '● Record'; recBtn.className = '';
+    addClip(new Blob(chunks, { type: recorder.mimeType }), 'Mic recording ' + new Date().toLocaleTimeString());
+  };
+  recorder.start();
+  recBtn.textContent = '■ Stop'; recBtn.className = 'rec';
+  $('audioStatus').textContent = 'Recording… speak now, then press Stop.';
+};
+
+// Copy buttons on the code samples in the instructions.
+for (const pre of document.querySelectorAll('.guide pre')) {
+  const b = document.createElement('button');
+  b.className = 'copy'; b.textContent = 'Copy';
+  b.onclick = () => navigator.clipboard.writeText(pre.querySelector('code').textContent)
+    .then(() => { b.textContent = 'Copied'; setTimeout(() => b.textContent = 'Copy', 1500); });
+  pre.appendChild(b);
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,32 @@
+# Linux (systemd). Install:
+#   sudo useradd --system --home /opt/worker --shell /usr/sbin/nologin transcribe
+#   sudo cp -r worker /opt/worker && sudo chown -R transcribe: /opt/worker
+#   sudo cp service/transcribe-worker.service /etc/systemd/system/
+#   sudo systemctl enable --now transcribe-worker
+#   journalctl -u transcribe-worker -f        # logs
+[Unit]
+Description=Interview transcription worker
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+User=transcribe
+WorkingDirectory=/opt/worker
+ExecStart=/opt/worker/.venv/bin/python -u transcribe_worker.py
+# Restart after any crash, forever, after 10 s. Jobs a crashed worker held go back to the queue when
+# their lease expires, so nothing is lost.
+Restart=always
+RestartSec=10
+# Finish the current answer before stopping (SIGTERM is handled).
+KillSignal=SIGTERM
+TimeoutStopSec=120
+# Hardening: the worker only needs its own folder and the network.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/worker
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
