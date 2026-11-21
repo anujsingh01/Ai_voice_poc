@@ -24,8 +24,6 @@ APP_DB_PASSWORD=$(openssl rand -hex 24)
 DATA_ENCRYPTION_KEY=$(openssl rand -base64 32)
 HEALTH_TOKEN=$(openssl rand -hex 32)
 OPENAI_API_KEY=
-EMAIL_DRIVER=dev
-SMS_DRIVER=dev
 EOF
   chmod 600 .env
   echo "Created /opt/ai-voice/.env with random secrets. Edit DOMAIN and OPENAI_API_KEY, and BACK UP DATA_ENCRYPTION_KEY."
