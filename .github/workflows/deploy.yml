@@ -60,7 +60,7 @@ jobs:
           host: ${{ secrets.VM_HOST }}
           username: ${{ secrets.VM_USER }}
           key: ${{ secrets.VM_SSH_KEY }}
-          source: platform/docker-compose.prod.yml,platform/deploy/Caddyfile,platform/deploy/backup.sh
+          source: platform/docker-compose.prod.yml,platform/deploy/backup.sh
           target: /opt/ai-voice
           strip_components: 1
       - name: Pull images and restart
@@ -72,7 +72,7 @@ jobs:
           script_stop: true
           script: |
             cd /opt/ai-voice
-            mv -f deploy/Caddyfile Caddyfile; mv -f deploy/backup.sh backup.sh; chmod +x backup.sh; rmdir deploy 2>/dev/null || true
+            mv -f deploy/backup.sh backup.sh; chmod +x backup.sh; rmdir deploy 2>/dev/null || true
             echo "${{ secrets.GHCR_PULL_TOKEN }}" | docker login ghcr.io -u "${{ github.repository_owner }}" --password-stdin
             export IMAGE_TAG=${{ github.sha }}
             sed -i '/^IMAGE_TAG=/d' .env && echo "IMAGE_TAG=$IMAGE_TAG" >> .env

@@ -1,0 +1,23 @@
+# Shared HTTPS front door for every project on the VM. Lives in /opt/edge (one-time setup, see docs/azure-vm.md).
+# Each project's web container joins the external network "edge" and is routed by hostname in the Caddyfile.
+services:
+  caddy:
+    image: caddy:2
+    container_name: edge-caddy
+    restart: unless-stopped
+    ports: ["80:80", "443:443"]
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks: [edge]
+
+networks:
+  edge:
+    external: true
+
+volumes:
+  caddy_data:
+    external: true
+    name: ai-voice_caddy_data      # reuse the certificates the voice project's Caddy already obtained
+  caddy_config:

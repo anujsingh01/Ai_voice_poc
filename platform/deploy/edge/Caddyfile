@@ -1,0 +1,18 @@
+# One block per project. Without a real domain, use <name>.<ip-with-dashes>.sslip.io (resolves to the IP).
+# Swap the hostname here when a real domain is available; the apps don't change.
+
+aipoc.centralindia.cloudapp.azure.com {
+	encode gzip
+	request_body {
+		max_size 15MB
+	}
+	reverse_proxy ai-voice-web:3000
+}
+
+width.20-40-57-182.sslip.io {
+	encode gzip
+	# Chat replies stream word by word; don't buffer them.
+	reverse_proxy ai-width-chat:3030 {
+		flush_interval -1
+	}
+}

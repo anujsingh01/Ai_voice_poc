@@ -1,5 +1,5 @@
 # Single-VM deployment (Azure Ubuntu VM). Replaces the AWS Terraform stack for the POC.
-# Runs: caddy (HTTPS) -> web, plus scoring/maintenance/message workers, Postgres and Valkey.
+# Runs: web, scoring/maintenance/message workers, Postgres and Valkey. HTTPS is the shared Caddy in /opt/edge.
 # Used from /opt/ai-voice on the VM by .github/workflows/deploy.yml; env comes from /opt/ai-voice/.env.
 
 x-app-env: &app-env
@@ -59,6 +59,10 @@ services:
     restart: unless-stopped
     environment: *app-env
     volumes: [storage:/data/storage]
+    networks:
+      default:
+      edge:
+        aliases: [ai-voice-web]   # the shared Caddy (/opt/edge) routes the domain to this name
     depends_on:
       migrate: { condition: service_completed_successfully }
       redis: { condition: service_started }
@@ -75,22 +79,11 @@ services:
     <<: *job
     command: ["scripts/message-worker.mts"]
 
-  caddy:
-    image: caddy:2
-    restart: unless-stopped
-    ports: ["80:80", "443:443"]
-    environment:
-      DOMAIN: ${DOMAIN}
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy_data:/data
-      - caddy_config:/config
-    depends_on:
-      web: { condition: service_healthy }
+networks:
+  edge:
+    external: true
 
 volumes:
   pgdata:
   redisdata:
   storage:
-  caddy_data:
-  caddy_config:
