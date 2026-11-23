@@ -9,6 +9,16 @@ aipoc.centralindia.cloudapp.azure.com {
 	reverse_proxy ai-voice-web:3000
 }
 
+insure.20-40-57-182.sslip.io {
+	encode gzip
+	handle /api/* {
+		reverse_proxy ai-insure-api:3100
+	}
+	handle {
+		reverse_proxy ai-insure-web:80
+	}
+}
+
 width.20-40-57-182.sslip.io {
 	encode gzip
 	# Chat replies stream word by word; don't buffer them.
